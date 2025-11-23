@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_file, send_from_directory
 from bs4 import BeautifulSoup
 import markdown
 
@@ -215,6 +215,65 @@ def batch_translate():
     except Exception as e:
         logger.error(f"Batch translate error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/export/content', methods=['GET'])
+def export_content():
+    """Export the current content.md file."""
+    try:
+        if not CONTENT_FILE.exists():
+            return jsonify({'error': 'Content file not found'}), 404
+        
+        return send_file(
+            CONTENT_FILE,
+            as_attachment=True,
+            download_name='content.md',
+            mimetype='text/markdown'
+        )
+    except Exception as e:
+        logger.error(f"Export error: {e}")
+        return jsonify({'error': 'Failed to export content'}), 500
+
+
+@app.route('/import/content', methods=['POST'])
+def import_content():
+    """Import a new content.md file."""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Validate file extension
+        if not file.filename.endswith(('.md', '.txt', '.markdown')):
+            return jsonify({'error': 'Invalid file type. Please upload .md, .txt, or .markdown file'}), 400
+        
+        # Read file content
+        content = file.read().decode('utf-8')
+        
+        # Validate file size (max 5MB)
+        if len(content) > 5 * 1024 * 1024:
+            return jsonify({'error': 'File too large. Maximum size is 5MB'}), 400
+        
+        # Save to content.md
+        with open(CONTENT_FILE, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        logger.info(f"Content imported successfully: {len(content)} characters")
+        return jsonify({
+            'success': True,
+            'message': 'Content imported successfully',
+            'size': len(content)
+        })
+        
+    except UnicodeDecodeError:
+        return jsonify({'error': 'Invalid file encoding. Please use UTF-8 encoded file'}), 400
+    except Exception as e:
+        logger.error(f"Import error: {e}")
+        return jsonify({'error': f'Failed to import content: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
