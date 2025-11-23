@@ -175,6 +175,7 @@ This application is ready to deploy to [Render](https://render.com/).
 **Note:** 
 - On the free tier, Render may spin down inactive apps after 15 minutes of inactivity. The first request after spin-down may take longer.
 - The translations cache (`data/translations.json`) is ephemeral on Render's free tier and will be reset on each deploy. Consider using a database for persistent storage in production.
+- This app uses Python 3.11.0 and does not require `lxml` (uses built-in `html.parser`).
 
 ### Manual Deployment (Without render.yaml)
 
