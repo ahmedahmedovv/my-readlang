@@ -91,6 +91,11 @@
             color: var(--color-white);
         }
         
+        .cw.memorized {
+            /* Memorized words look like normal words - no special styling */
+            /* They're still tracked internally but appear normal */
+        }
+        
         .cw.loading {
             background-color: var(--color-gray-light);
         }
@@ -912,7 +917,8 @@
     </div>
 
     <script>
-        let selectedWords = new Set();
+        let selectedWords = new Set(); // Words marked once (across all pages)
+        let memorizedWords = new Set(); // Words clicked twice - user has memorized them (across all pages)
         let isSelecting = false;
         let startWord = null;
         let currentPage = 0;
@@ -923,6 +929,7 @@
         // Storage keys
         const STORAGE_KEY_PAGE = 'dictionary_current_page';
         const STORAGE_KEY_SELECTED = 'dictionary_selected_words';
+        const STORAGE_KEY_MEMORIZED = 'dictionary_memorized_words';
         const STORAGE_KEY_SETTINGS = 'dictionary_settings';
         
         // Default settings
@@ -960,8 +967,40 @@
                         console.warn('Failed to parse saved words:', e);
                     }
                 }
+                
+                // Load memorized words (words clicked twice)
+                const savedMemorized = localStorage.getItem(STORAGE_KEY_MEMORIZED);
+                if (savedMemorized) {
+                    try {
+                        const memorizedArray = JSON.parse(savedMemorized);
+                        if (Array.isArray(memorizedArray)) {
+                            memorizedWords = new Set(memorizedArray);
+                        }
+                    } catch (e) {
+                        console.warn('Failed to parse memorized words:', e);
+                    }
+                }
             } catch (e) {
                 console.warn('Failed to load saved state:', e);
+            }
+        }
+        
+        // Save memorized words
+        function saveMemorizedWords() {
+            try {
+                const memorizedArray = Array.from(memorizedWords);
+                localStorage.setItem(STORAGE_KEY_MEMORIZED, JSON.stringify(memorizedArray));
+            } catch (e) {
+                console.warn('Failed to save memorized words:', e);
+            }
+        }
+        
+        // Clear memorized words from localStorage
+        function clearMemorizedWords() {
+            try {
+                localStorage.removeItem(STORAGE_KEY_MEMORIZED);
+            } catch (e) {
+                console.warn('Failed to clear memorized words:', e);
             }
         }
         
@@ -984,6 +1023,7 @@
             try {
                 localStorage.removeItem(STORAGE_KEY_PAGE);
                 localStorage.removeItem(STORAGE_KEY_SELECTED);
+                // Note: We don't clear memorized words here - they persist across content changes
             } catch (e) {
                 console.warn('Failed to clear saved state:', e);
             }
@@ -1214,29 +1254,17 @@
         
         // Restore selected words on all pages
         function restoreSelectedWords() {
-            if (selectedWords.size === 0) return;
+            // First apply memorized words (these should override selections)
+            applyMemorizedWords();
             
-            // Go through all pages and restore selections
-            document.querySelectorAll('.cw').forEach(element => {
-                const word = element.getAttribute('data-word');
-                
-                // Check if this exact word is selected
-                if (selectedWords.has(word)) {
-                    element.classList.add('selected');
-                } else {
-                    // Check if this word is part of any selected phrase
-                    for (const selectedPhrase of selectedWords) {
-                        if (selectedPhrase !== word && selectedPhrase.includes(word)) {
-                            // Check if word is part of the phrase (not just substring)
-                            const wordsInPhrase = selectedPhrase.split(' ');
-                            if (wordsInPhrase.includes(word)) {
-                                element.classList.add('selected');
-                                break;
-                            }
-                        }
+            // Then restore selected words (but not if they're memorized)
+            if (selectedWords.size > 0) {
+                selectedWords.forEach(word => {
+                    if (!memorizedWords.has(word)) {
+                        markWordEverywhere(word);
                     }
-                }
-            });
+                });
+            }
             
             // Update display without saving (since we're restoring from saved state)
             updateSelectedWordsDisplayWithoutSave();
@@ -1823,11 +1851,14 @@
         function updateSelectedWordsDisplay() {
             selectedWordsDiv.innerHTML = '';
             
-            if (selectedWords.size === 0) {
+            // Filter out memorized words from display
+            const displayWords = Array.from(selectedWords).filter(word => !memorizedWords.has(word));
+            
+            if (displayWords.length === 0) {
                 selectedWordsDiv.textContent = 'No words selected';
                 processBatchBtn.disabled = true;
             } else {
-                selectedWords.forEach(word => {
+                displayWords.forEach(word => {
                     const tag = document.createElement('div');
                     tag.className = 'selected-word-tag';
                     tag.innerHTML = `
@@ -1838,14 +1869,10 @@
                         const phraseToRemove = e.target.getAttribute('data-word');
                         selectedWords.delete(phraseToRemove);
                         
-                        // Remove visual selection for all words in phrase
+                        // Remove visual selection for all words in phrase across all pages
                         const wordsToRemove = phraseToRemove.split(' ');
                         wordsToRemove.forEach(w => {
-                            const el = getWordElement(w);
-                            if (el) {
-                                el.classList.remove('selected');
-                                el.classList.remove('loading');
-                            }
+                            unmarkWordEverywhere(w);
                         });
                         
                         updateSelectedWordsDisplay();
@@ -1952,54 +1979,145 @@
             return mergedPhrases;
         }
         
+        // Mark word across all pages (all instances)
+        function markWordEverywhere(word) {
+            document.querySelectorAll('.cw[data-word="' + word + '"]').forEach(el => {
+                if (!el.classList.contains('memorized')) {
+                    el.classList.add('selected');
+                }
+            });
+        }
+        
+        // Unmark word across all pages (all instances)
+        function unmarkWordEverywhere(word) {
+            document.querySelectorAll('.cw[data-word="' + word + '"]').forEach(el => {
+                el.classList.remove('selected');
+                el.classList.remove('loading');
+            });
+        }
+        
+        // Apply memorized state to word across all pages
+        function markWordMemorizedEverywhere(word) {
+            document.querySelectorAll('.cw[data-word="' + word + '"]').forEach(el => {
+                el.classList.add('memorized');
+                el.classList.remove('selected');
+                el.classList.remove('loading');
+            });
+        }
+        
+        // Remove memorized state from word across all pages
+        function unmarkWordMemorizedEverywhere(word) {
+            document.querySelectorAll('.cw[data-word="' + word + '"]').forEach(el => {
+                el.classList.remove('memorized');
+            });
+        }
+        
+        // Apply memorized state to all memorized words on page load
+        function applyMemorizedWords() {
+            memorizedWords.forEach(word => {
+                markWordMemorizedEverywhere(word);
+            });
+        }
+        
         // Handle word click
         async function handleWordClick(word, element) {
             if (element.classList.contains('loading')) return;
             
-            // Toggle selection
-            if (element.classList.contains('selected')) {
-                element.classList.remove('selected');
-                selectedWords.delete(word);
-                
-                // Rebuild selections - check if word was part of a merged phrase
-                // and unmerge if necessary
-                const phrasesToRemove = [];
-                selectedWords.forEach(phrase => {
-                    // Check if this phrase contains the deselected word
-                    const wordsInPhrase = phrase.split(' ');
-                    if (wordsInPhrase.includes(word) && wordsInPhrase.length > 1) {
-                        phrasesToRemove.push(phrase);
-                    }
-                });
-                
-                // Remove merged phrases that contained this word
-                phrasesToRemove.forEach(phrase => selectedWords.delete(phrase));
-                
-                // Rebuild all selections based on visual state
-                mergeAdjacentWords();
+            // Check if word is memorized
+            const isMemorized = memorizedWords.has(word);
+            
+            // Check if word is selected (but not memorized)
+            const isSelected = element.classList.contains('selected') && !isMemorized;
+            
+            if (isMemorized) {
+                // Word is memorized (clicked twice before) - undo memorization
+                // Remove from memorized and mark it everywhere
+                memorizedWords.delete(word);
+                unmarkWordMemorizedEverywhere(word);
+                selectedWords.add(word);
+                markWordEverywhere(word);
+                saveMemorizedWords();
                 updateSelectedWordsDisplay();
-                saveState(); // Save state after deselection
+                saveState();
+                
+                // Show translation for the word
+                element.classList.add('loading');
+                try {
+                    const response = await fetch(`/t/${encodeURIComponent(word)}`);
+                    const result = await response.json();
+                    
+                    translationWord.textContent = word;
+                    definitionContent.innerHTML = '';
+                    examplesContent.innerHTML = '';
+                    
+                    if (result.error) {
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'err';
+                        errorDiv.textContent = result.error;
+                        definitionContent.appendChild(errorDiv);
+                    } else {
+                        if (result.definition) {
+                            const defDiv = document.createElement('div');
+                            defDiv.textContent = result.definition;
+                            definitionContent.appendChild(defDiv);
+                        } else {
+                            definitionContent.innerHTML = '<em>No definition available</em>';
+                        }
+                        
+                        if (result.examples && result.examples.length > 0) {
+                            result.examples.forEach(example => {
+                                const exampleDiv = document.createElement('div');
+                                exampleDiv.className = 'example-item';
+                                exampleDiv.textContent = example;
+                                examplesContent.appendChild(exampleDiv);
+                            });
+                        } else {
+                            examplesContent.innerHTML = '<em>No examples available</em>';
+                        }
+                    }
+                    translationPanel.classList.add('show');
+                } catch (error) {
+                    translationWord.textContent = 'Error';
+                    definitionContent.innerHTML = '';
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'err';
+                    errorDiv.textContent = `Failed to fetch translation: ${escapeHtml(String(error))}`;
+                    definitionContent.appendChild(errorDiv);
+                    examplesContent.innerHTML = '';
+                    translationPanel.classList.add('show');
+                } finally {
+                    element.classList.remove('loading');
+                }
                 return;
             }
             
-            // Add selection
-            element.classList.add('selected');
+            if (isSelected) {
+                // Second click - mark as memorized and unmark everywhere
+                selectedWords.delete(word);
+                memorizedWords.add(word);
+                unmarkWordEverywhere(word);
+                markWordMemorizedEverywhere(word);
+                saveMemorizedWords();
+                updateSelectedWordsDisplay();
+                saveState();
+                
+                // Close translation panel
+                translationPanel.classList.remove('show');
+                return;
+            }
+            
+            // First click - mark word everywhere across all pages
             selectedWords.add(word);
+            markWordEverywhere(word);
             
-            // Merge adjacent words if they're selected
-            const adjacent = getAdjacentWords(word);
-            
-            // Check if left word is selected
-            if (adjacent.left && adjacent.left.element.classList.contains('selected')) {
-                mergeAdjacentWords();
-            }
-            // Check if right word is selected
-            else if (adjacent.right && adjacent.right.element.classList.contains('selected')) {
-                mergeAdjacentWords();
-            }
+            // Merge adjacent words if they're selected (only for current page context)
+            mergeAdjacentWords();
             
             updateSelectedWordsDisplay();
-            saveState(); // Save state after selection
+            saveState();
+            
+            // Show translation for the word
+            element.classList.add('loading');
             
             // Get the phrase to translate (could be merged)
             let phraseToTranslate = word;
@@ -2009,10 +2127,8 @@
                 }
             });
             
-            // Show loading state
-            element.classList.add('loading');
             if (phraseToTranslate !== word) {
-                // Also show loading on other words in phrase
+                // Also show loading on other words in phrase (current page only)
                 phraseToTranslate.split(' ').forEach(w => {
                     const el = getWordElement(w);
                     if (el) el.classList.add('loading');
