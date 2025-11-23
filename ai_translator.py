@@ -52,10 +52,11 @@ class AITranslator:
         
         try:
             prompt = (
-                f"Generate 3 example sentences using the word/phrase: '{word}'. "
-                "Each sentence should be natural and demonstrate different contexts. "
-                "Format as JSON array of strings. Example: "
-                '["Sentence 1", "Sentence 2", "Sentence 3"]'
+                f"For the word/phrase: '{word}', provide:\n"
+                "1. A brief definition (1-2 sentences explaining what it means)\n"
+                "2. Three example sentences demonstrating its usage\n\n"
+                "Format your response as JSON with this structure:\n"
+                '{"definition": "Brief definition here", "examples": ["Example 1", "Example 2", "Example 3"]}'
             )
             
             # Prepare request payload
@@ -108,27 +109,80 @@ class AITranslator:
             
             # Try to parse JSON
             try:
-                examples = json.loads(text)
+                result_data = json.loads(text)
+                
+                # Check if we have the expected structure
+                if isinstance(result_data, dict):
+                    definition = result_data.get('definition', '')
+                    examples = result_data.get('examples', [])
+                    
+                    # Validate examples
+                    if isinstance(examples, list):
+                        examples = [e for e in examples if isinstance(e, str) and len(e) >= 5]
+                        examples = examples[:3]  # Limit to 3 examples
+                    
+                    # If we have either definition or examples, return them
+                    if definition or examples:
+                        return {
+                            'definition': definition.strip() if definition else '',
+                            'examples': examples
+                        }
+                
+                # Fallback: if it's an array (old format), treat as examples only
+                if isinstance(result_data, list):
+                    examples = [e for e in result_data if isinstance(e, str) and len(e) >= 5]
+                    if examples:
+                        return {
+                            'definition': '',
+                            'examples': examples[:3]
+                        }
+                        
             except json.JSONDecodeError:
-                # If not JSON, try to extract sentences from plain text
-                # Look for sentences ending with periods
-                sentences = [s.strip() for s in text.split('.') if s.strip()]
-                if len(sentences) >= 3:
-                    examples = sentences[:3]
-                else:
-                    # Split by newlines or bullets
-                    examples = [s.strip().lstrip('- ').lstrip('* ') 
-                               for s in text.split('\n') if s.strip() and len(s.strip()) >= 5]
-                    if len(examples) < 3:
-                        examples = [text]  # Fallback to single response
+                # If not JSON, try to extract definition and sentences from plain text
+                lines = [s.strip() for s in text.split('\n') if s.strip()]
+                
+                # Try to find definition (usually first line or lines starting with specific markers)
+                definition = ''
+                examples = []
+                
+                for i, line in enumerate(lines):
+                    line_lower = line.lower()
+                    # Check if this looks like a definition
+                    if any(marker in line_lower for marker in ['is', 'means', 'refers to', 'definition']):
+                        definition = line
+                        # Examples usually come after definition
+                        remaining_lines = lines[i+1:]
+                        examples = [s.strip().lstrip('- ').lstrip('* ').lstrip('1. ').lstrip('2. ').lstrip('3. ')
+                                   for s in remaining_lines if s.strip() and len(s.strip()) >= 5]
+                        break
+                
+                # If no definition found, treat first part as definition, rest as examples
+                if not definition and lines:
+                    if len(lines) >= 4:
+                        definition = lines[0]
+                        examples = [s.strip().lstrip('- ').lstrip('* ').lstrip('1. ').lstrip('2. ').lstrip('3. ')
+                                   for s in lines[1:] if s.strip() and len(s.strip()) >= 5]
+                    else:
+                        # All are examples
+                        examples = [s.strip().lstrip('- ').lstrip('* ').lstrip('1. ').lstrip('2. ').lstrip('3. ')
+                                   for s in lines if s.strip() and len(s.strip()) >= 5]
+                
+                # Fallback: try splitting by sentences
+                if not examples:
+                    sentences = [s.strip() for s in text.split('.') if s.strip() and len(s.strip()) >= 5]
+                    if len(sentences) >= 3:
+                        definition = sentences[0] if sentences else ''
+                        examples = sentences[1:4] if len(sentences) > 1 else sentences[:3]
+                    elif sentences:
+                        examples = sentences[:3]
+                
+                if definition or examples:
+                    return {
+                        'definition': definition.strip(),
+                        'examples': examples[:3] if examples else []
+                    }
             
-            # Validate and filter examples
-            if isinstance(examples, list):
-                examples = [e for e in examples if isinstance(e, str) and len(e) >= 5]
-                if examples:
-                    return {'examples': examples[:3]}  # Limit to 3 examples
-            
-            return {'error': 'Failed to generate valid examples'}
+            return {'error': 'Failed to generate valid response'}
             
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error for word '{word}': {e}")

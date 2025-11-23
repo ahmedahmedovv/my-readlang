@@ -48,6 +48,29 @@ cp .env.example .env
 
 ## Usage
 
+### Local Testing (Recommended for Development)
+
+**Easy setup for testing on your computer and tablet:**
+
+1. Set your API key:
+```bash
+export MISTRAL_API_KEY="your_api_key_here"
+```
+
+2. Run the local development server:
+```bash
+python run_local.py
+```
+
+3. Access from your devices:
+   - **Computer:** `http://localhost:8080`
+   - **Tablet/Phone (same Wi-Fi):** `http://YOUR_COMPUTER_IP:8080`
+   - The script will show your IP address automatically
+
+📖 **See [TESTING.md](TESTING.md) for detailed local testing instructions.**
+
+### Standard Run
+
 1. Create a `content.md` file in the project root (or edit the existing one)
 
 2. Run the application:

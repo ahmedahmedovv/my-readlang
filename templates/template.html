@@ -97,8 +97,10 @@
         .translation-panel {
             position: fixed;
             bottom: 20px;
+            left: 20px;
             right: 20px;
-            max-width: 400px;
+            max-width: 1200px;
+            margin: 0 auto;
             background: var(--color-white);
             border: 1px solid var(--color-gray-light);
             border-radius: 8px;
@@ -111,36 +113,79 @@
             -webkit-overflow-scrolling: touch;
         }
         
+        @media (min-width: 769px) {
+            .translation-panel {
+                right: 20px;
+                left: auto;
+                max-width: 800px;
+            }
+        }
+        
         .translation-panel.show {
             display: block;
         }
         
-        .translation-panel h3 {
-            margin-bottom: 10px;
-            color: var(--color-black);
+        .translation-header {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
             border-bottom: 2px solid var(--color-black);
-            padding-bottom: 5px;
+        }
+        
+        .translation-panel h3 {
+            margin-bottom: 8px;
+            color: var(--color-black);
             font-weight: 600;
+            font-size: 18px;
         }
         
         .translation-panel .word {
             font-weight: bold;
             color: var(--color-black);
+            font-size: 20px;
+        }
+        
+        .translation-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .translation-left,
+        .translation-right {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .translation-left h4,
+        .translation-right h4 {
             margin-bottom: 10px;
+            color: var(--color-black);
+            font-weight: 600;
+            font-size: 16px;
+            border-bottom: 1px solid var(--color-gray-light);
+            padding-bottom: 5px;
         }
         
-        .translation-panel .examples {
-            list-style: none;
-            padding: 0;
+        .definition-content {
+            color: var(--color-black);
+            line-height: 1.6;
+            font-size: 15px;
         }
         
-        .translation-panel .examples li {
-            padding: 8px;
-            margin: 5px 0;
+        .examples-content {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .example-item {
+            padding: 10px;
             background: var(--color-bg-light);
             border-left: 3px solid var(--color-black);
             border-radius: 3px;
             color: var(--color-black);
+            font-size: 14px;
+            line-height: 1.5;
         }
         
         .translation-panel .err {
@@ -149,6 +194,7 @@
             background: var(--color-bg-light);
             border: 1px solid var(--color-gray-light);
             border-radius: 4px;
+            grid-column: 1 / -1;
         }
         
         .translation-panel .close {
@@ -516,22 +562,42 @@
                 max-width: 100%;
                 max-height: 70vh;
                 border-radius: 16px 16px 0 0;
-                padding: 20px;
-                padding-bottom: max(20px, env(safe-area-inset-bottom));
+                padding: 15px;
+                padding-bottom: max(15px, env(safe-area-inset-bottom));
                 box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
             }
             
+            .translation-body {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .translation-left,
+            .translation-right {
+                border-bottom: 1px solid var(--color-gray-light);
+                padding-bottom: 10px;
+            }
+            
+            .translation-right {
+                border-bottom: none;
+            }
+            
             .translation-panel h3 {
-                font-size: 20px;
+                font-size: 18px;
             }
             
             .translation-panel .word {
                 font-size: 18px;
             }
             
-            .translation-panel .examples li {
+            .translation-left h4,
+            .translation-right h4 {
                 font-size: 15px;
-                padding: 10px;
+            }
+            
+            .example-item {
+                font-size: 13px;
+                padding: 8px;
             }
         }
         
@@ -639,21 +705,34 @@
             }
             
             .translation-panel {
-                max-width: 500px;
+                max-width: 800px;
                 max-height: 600px;
                 padding: 25px;
             }
             
+            .translation-body {
+                gap: 25px;
+            }
+            
             .translation-panel h3 {
-                font-size: 24px;
+                font-size: 22px;
             }
             
             .translation-panel .word {
                 font-size: 20px;
             }
             
-            .translation-panel .examples li {
+            .translation-left h4,
+            .translation-right h4 {
                 font-size: 18px;
+            }
+            
+            .definition-content {
+                font-size: 16px;
+            }
+            
+            .example-item {
+                font-size: 15px;
                 padding: 12px;
             }
         }
@@ -742,7 +821,20 @@
     
     <div class="translation-panel" id="translationPanel">
         <button class="close" id="closePanel">&times;</button>
-        <div id="translationContent"></div>
+        <div class="translation-header">
+            <h3>Translation</h3>
+            <div class="word" id="translationWord"></div>
+        </div>
+        <div class="translation-body">
+            <div class="translation-left" id="translationLeft">
+                <h4>Definition</h4>
+                <div class="definition-content" id="definitionContent"></div>
+            </div>
+            <div class="translation-right" id="translationRight">
+                <h4>Examples</h4>
+                <div class="examples-content" id="examplesContent"></div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1163,7 +1255,9 @@
         
         // Get translation panel elements
         const translationPanel = document.getElementById('translationPanel');
-        const translationContent = document.getElementById('translationContent');
+        const translationWord = document.getElementById('translationWord');
+        const definitionContent = document.getElementById('definitionContent');
+        const examplesContent = document.getElementById('examplesContent');
         const closePanel = document.getElementById('closePanel');
         const selectedWordsDiv = document.getElementById('selectedWords');
         const processBatchBtn = document.getElementById('processBatch');
@@ -1392,37 +1486,71 @@
                 
                 const results = await response.json();
                 
-                // Display all results
-                translationContent.innerHTML = '<h3>Batch Results</h3>';
+                // Display batch results in split layout
+                translationWord.textContent = 'Batch Results';
+                definitionContent.innerHTML = '';
+                examplesContent.innerHTML = '';
+                
+                // Create containers for batch results
+                const batchDefinitions = document.createElement('div');
+                batchDefinitions.style.display = 'flex';
+                batchDefinitions.style.flexDirection = 'column';
+                batchDefinitions.style.gap = '15px';
+                
+                const batchExamples = document.createElement('div');
+                batchExamples.style.display = 'flex';
+                batchExamples.style.flexDirection = 'column';
+                batchExamples.style.gap = '15px';
                 
                 for (const [word, result] of Object.entries(results)) {
-                    const wordDiv = document.createElement('div');
-                    wordDiv.style.marginBottom = '20px';
+                    // Left side: Definitions
+                    const wordDefDiv = document.createElement('div');
+                    wordDefDiv.style.marginBottom = '10px';
                     
                     const wordTitle = document.createElement('div');
-                    wordTitle.className = 'word';
+                    wordTitle.style.fontWeight = 'bold';
+                    wordTitle.style.marginBottom = '5px';
                     wordTitle.textContent = word;
-                    wordDiv.appendChild(wordTitle);
+                    wordDefDiv.appendChild(wordTitle);
                     
                     if (result.error) {
                         const errorDiv = document.createElement('div');
                         errorDiv.className = 'err';
                         errorDiv.textContent = result.error;
-                        wordDiv.appendChild(errorDiv);
-                    } else if (result.examples) {
-                        const examplesList = document.createElement('ul');
-                        examplesList.className = 'examples';
-                        result.examples.forEach(example => {
-                            const li = document.createElement('li');
-                            li.textContent = example;
-                            examplesList.appendChild(li);
-                        });
-                        wordDiv.appendChild(examplesList);
+                        errorDiv.style.fontSize = '13px';
+                        wordDefDiv.appendChild(errorDiv);
+                    } else if (result.definition) {
+                        const defText = document.createElement('div');
+                        defText.textContent = result.definition;
+                        defText.style.fontSize = '14px';
+                        wordDefDiv.appendChild(defText);
                     }
+                    batchDefinitions.appendChild(wordDefDiv);
                     
-                    translationContent.appendChild(wordDiv);
+                    // Right side: Examples
+                    const wordExamplesDiv = document.createElement('div');
+                    wordExamplesDiv.style.marginBottom = '10px';
+                    
+                    const wordTitleRight = document.createElement('div');
+                    wordTitleRight.style.fontWeight = 'bold';
+                    wordTitleRight.style.marginBottom = '5px';
+                    wordTitleRight.textContent = word;
+                    wordExamplesDiv.appendChild(wordTitleRight);
+                    
+                    if (result.examples && result.examples.length > 0) {
+                        result.examples.forEach(example => {
+                            const exampleDiv = document.createElement('div');
+                            exampleDiv.className = 'example-item';
+                            exampleDiv.textContent = example;
+                            exampleDiv.style.fontSize = '13px';
+                            wordExamplesDiv.appendChild(exampleDiv);
+                        });
+                    }
+                    batchExamples.appendChild(wordExamplesDiv);
                 }
                 
+                definitionContent.appendChild(batchDefinitions);
+                examplesContent.appendChild(batchExamples);
                 translationPanel.classList.add('show');
                 selectedWords.clear();
                 updateSelectedWordsDisplay();
@@ -1431,10 +1559,13 @@
                 });
                 
             } catch (error) {
-                translationContent.innerHTML = `
-                    <h3>Error</h3>
-                    <div class="err">Failed to process batch: ${escapeHtml(String(error))}</div>
-                `;
+                translationWord.textContent = 'Error';
+                definitionContent.innerHTML = '';
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'err';
+                errorDiv.textContent = `Failed to process batch: ${escapeHtml(String(error))}`;
+                definitionContent.appendChild(errorDiv);
+                examplesContent.innerHTML = '';
                 translationPanel.classList.add('show');
             } finally {
                 processBatchBtn.disabled = false;
@@ -1646,35 +1777,52 @@
                 const response = await fetch(`/t/${encodeURIComponent(phraseToTranslate)}`);
                 const result = await response.json();
                 
-                // Display result
-                translationContent.innerHTML = `
-                    <h3>Translation</h3>
-                    <div class="word">${escapeHtml(phraseToTranslate)}</div>
-                `;
+                // Display word/phrase
+                translationWord.textContent = phraseToTranslate;
+                
+                // Clear previous content
+                definitionContent.innerHTML = '';
+                examplesContent.innerHTML = '';
                 
                 if (result.error) {
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'err';
                     errorDiv.textContent = result.error;
-                    translationContent.appendChild(errorDiv);
-                } else if (result.examples) {
-                    const examplesList = document.createElement('ul');
-                    examplesList.className = 'examples';
-                    result.examples.forEach(example => {
-                        const li = document.createElement('li');
-                        li.textContent = example;
-                        examplesList.appendChild(li);
-                    });
-                    translationContent.appendChild(examplesList);
+                    errorDiv.style.gridColumn = '1 / -1';
+                    definitionContent.appendChild(errorDiv);
+                } else {
+                    // Display definition (left side)
+                    if (result.definition) {
+                        const defDiv = document.createElement('div');
+                        defDiv.textContent = result.definition;
+                        definitionContent.appendChild(defDiv);
+                    } else {
+                        definitionContent.innerHTML = '<em>No definition available</em>';
+                    }
+                    
+                    // Display examples (right side)
+                    if (result.examples && result.examples.length > 0) {
+                        result.examples.forEach(example => {
+                            const exampleDiv = document.createElement('div');
+                            exampleDiv.className = 'example-item';
+                            exampleDiv.textContent = example;
+                            examplesContent.appendChild(exampleDiv);
+                        });
+                    } else {
+                        examplesContent.innerHTML = '<em>No examples available</em>';
+                    }
                 }
                 
                 translationPanel.classList.add('show');
                 
             } catch (error) {
-                translationContent.innerHTML = `
-                    <h3>Error</h3>
-                    <div class="err">Failed to fetch translation: ${escapeHtml(String(error))}</div>
-                `;
+                translationWord.textContent = 'Error';
+                definitionContent.innerHTML = '';
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'err';
+                errorDiv.textContent = `Failed to fetch translation: ${escapeHtml(String(error))}`;
+                definitionContent.appendChild(errorDiv);
+                examplesContent.innerHTML = '';
                 translationPanel.classList.add('show');
             } finally {
                 // Remove loading state
