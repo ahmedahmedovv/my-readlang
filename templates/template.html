@@ -893,6 +893,7 @@
             <div class="selected-words" id="selectedWords"></div>
             <div class="batch-actions">
                 <button class="btn-primary" id="processBatch" disabled>Process Selected</button>
+                <button class="btn-secondary" id="exportSelectedWords" disabled>Export Words</button>
                 <button class="btn-secondary" id="clearSelection">Clear</button>
             </div>
         </div>
@@ -1388,6 +1389,7 @@
         const clearSelectionBtn = document.getElementById('clearSelection');
         const exportContentBtn = document.getElementById('exportContent');
         const importFileInput = document.getElementById('importFile');
+        const exportSelectedWordsBtn = document.getElementById('exportSelectedWords');
         const prevPageBtn = document.getElementById('prevPage');
         const nextPageBtn = document.getElementById('nextPage');
         const prevPageBtnBottom = document.getElementById('prevPageBottom');
@@ -1631,6 +1633,39 @@
             });
         }
         
+        // Export selected words
+        exportSelectedWordsBtn.addEventListener('click', () => {
+            // Filter out memorized words
+            const wordsToExport = Array.from(selectedWords).filter(word => !memorizedWords.has(word));
+            
+            if (wordsToExport.length === 0) {
+                showNotification('No words to export', 'info');
+                return;
+            }
+            
+            // Create JSON content with metadata
+            const jsonContent = JSON.stringify({
+                words: wordsToExport,
+                count: wordsToExport.length,
+                exportDate: new Date().toISOString(),
+                format: 'interactive-dictionary-export'
+            }, null, 2);
+            
+            // Create a blob for JSON
+            const blob = new Blob([jsonContent], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            const dateStr = new Date().toISOString().split('T')[0];
+            link.download = `selected_words_${dateStr}.json`;
+            document.body.appendChild(link);
+            link.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(link);
+            
+            showNotification(`Exported ${wordsToExport.length} word(s) as JSON`, 'success');
+        });
+        
         // Import content
         importFileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
@@ -1857,6 +1892,7 @@
             if (displayWords.length === 0) {
                 selectedWordsDiv.textContent = 'No words selected';
                 processBatchBtn.disabled = true;
+                exportSelectedWordsBtn.disabled = true;
             } else {
                 displayWords.forEach(word => {
                     const tag = document.createElement('div');
@@ -1881,6 +1917,7 @@
                     selectedWordsDiv.appendChild(tag);
                 });
                 processBatchBtn.disabled = false;
+                exportSelectedWordsBtn.disabled = false;
             }
             
             // Save state after updating display
