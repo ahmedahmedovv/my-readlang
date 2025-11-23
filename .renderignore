@@ -1,0 +1,20 @@
+# Files to ignore during Render deployment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+.env
+.env.local
+*.log
+.git/
+.github/
+*.md
+!README.md
+CONTRIBUTING.md
+LICENSE
+

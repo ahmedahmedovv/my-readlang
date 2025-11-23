@@ -13,10 +13,17 @@ from bs4 import BeautifulSoup
 import markdown
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# Production configuration
+if os.getenv('FLASK_DEBUG', 'False').lower() != 'true':
+    app.config['DEBUG'] = False
 
 # Paths
 DATA_DIR = Path(__file__).parent / "data"

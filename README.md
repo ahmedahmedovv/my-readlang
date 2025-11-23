@@ -2,6 +2,8 @@
 
 A Flask-based web application that converts markdown content into an interactive dictionary with clickable words. Each word provides AI-generated example sentences using Mistral AI API.
 
+🚀 **Ready to deploy to Render, Heroku, Railway, and other platforms!**
+
 ## Features
 
 - 📖 Markdown to interactive HTML conversion
@@ -145,6 +147,53 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - Run in production behind a reverse proxy (nginx)
 - Enable HTTPS in production
 - Consider adding authentication if multi-user support is needed
+
+## Deployment
+
+### Deploy to Render
+
+This application is ready to deploy to [Render](https://render.com/).
+
+1. **Push your code to GitHub**
+
+2. **Create a new Web Service on Render:**
+   - Go to [Render Dashboard](https://dashboard.render.com/)
+   - Click "New +" → "Web Service"
+   - Connect your GitHub repository
+   - Render will auto-detect the settings from `render.yaml`
+
+3. **Set Environment Variables:**
+   - In the Render dashboard, go to Environment
+   - Add `MISTRAL_API_KEY` with your API key
+   - (Optional) Set `FLASK_DEBUG=False` for production
+
+4. **Deploy:**
+   - Click "Create Web Service"
+   - Render will build and deploy your app automatically
+   - Your app will be available at `https://your-app-name.onrender.com`
+
+**Note:** 
+- On the free tier, Render may spin down inactive apps after 15 minutes of inactivity. The first request after spin-down may take longer.
+- The translations cache (`data/translations.json`) is ephemeral on Render's free tier and will be reset on each deploy. Consider using a database for persistent storage in production.
+
+### Manual Deployment (Without render.yaml)
+
+If you prefer to configure manually:
+
+- **Build Command:** `pip install -r requirements.txt`
+- **Start Command:** `gunicorn app:app`
+- **Python Version:** 3.11.0
+- **Environment Variables:** 
+  - `MISTRAL_API_KEY` (required)
+  - `FLASK_DEBUG=False` (for production)
+
+### Other Platforms
+
+The app can also be deployed to:
+- **Heroku:** Uses the `Procfile` provided
+- **Railway:** Uses `Procfile` and auto-detects Python
+- **Fly.io:** Uses `Procfile`
+- **PythonAnywhere:** Standard Flask deployment
 
 ## License
 
