@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Dictionary</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .content {
+            font-size: 18px;
+            line-height: 1.8;
+            margin-bottom: 30px;
+        }
+        
+        .cw {
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+            user-select: none;
+        }
+        
+        .cw:hover {
+            background-color: #e3f2fd;
+        }
+        
+        .cw.selected {
+            background-color: #2196f3;
+            color: white;
+        }
+        
+        .cw.loading {
+            background-color: #fff9c4;
+        }
+        
+        .translation-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            max-width: 400px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-height: 500px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .translation-panel.show {
+            display: block;
+        }
+        
+        .translation-panel h3 {
+            margin-bottom: 10px;
+            color: #2196f3;
+            border-bottom: 2px solid #2196f3;
+            padding-bottom: 5px;
+        }
+        
+        .translation-panel .word {
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+        
+        .translation-panel .examples {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .translation-panel .examples li {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-left: 3px solid #2196f3;
+            border-radius: 3px;
+        }
+        
+        .translation-panel .err {
+            color: #d32f2f;
+            padding: 10px;
+            background: #ffebee;
+            border-radius: 4px;
+        }
+        
+        .translation-panel .close {
+            float: right;
+            cursor: pointer;
+            font-size: 20px;
+            color: #999;
+            border: none;
+            background: none;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+        }
+        
+        .translation-panel .close:hover {
+            color: #333;
+        }
+        
+        .batch-panel {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        
+        .batch-panel h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        .selected-words {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+            min-height: 40px;
+        }
+        
+        .selected-word-tag {
+            background: #2196f3;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .selected-word-tag .remove {
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.8;
+        }
+        
+        .selected-word-tag .remove:hover {
+            opacity: 1;
+        }
+        
+        .batch-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: #1976d2;
+        }
+        
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #616161;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #2196f3;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .translation-panel {
+                position: fixed;
+                bottom: 0;
+                right: 0;
+                left: 0;
+                max-width: 100%;
+                border-radius: 8px 8px 0 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Interactive Dictionary</h1>
+        <div class="content" id="content">
+            {{ content|safe }}
+        </div>
+        
+        <div class="batch-panel">
+            <h3>Selected Words</h3>
+            <div class="selected-words" id="selectedWords"></div>
+            <div class="batch-actions">
+                <button class="btn-primary" id="processBatch" disabled>Process Selected</button>
+                <button class="btn-secondary" id="clearSelection">Clear</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="translation-panel" id="translationPanel">
+        <button class="close" id="closePanel">&times;</button>
+        <div id="translationContent"></div>
+    </div>
+
+    <script>
+        let selectedWords = new Set();
+        let isSelecting = false;
+        let startWord = null;
+        
+        // Get all defined words from cache (for future use)
+        function getDefinedWords() {
+            // This could fetch from localStorage or a server endpoint
+            // For now, return empty set
+            return new Set();
+        }
+        
+        // Get translation panel elements
+        const translationPanel = document.getElementById('translationPanel');
+        const translationContent = document.getElementById('translationContent');
+        const closePanel = document.getElementById('closePanel');
+        const selectedWordsDiv = document.getElementById('selectedWords');
+        const processBatchBtn = document.getElementById('processBatch');
+        const clearSelectionBtn = document.getElementById('clearSelection');
+        
+        // Close panel
+        closePanel.addEventListener('click', () => {
+            translationPanel.classList.remove('show');
+        });
+        
+        // Clear selection
+        clearSelectionBtn.addEventListener('click', () => {
+            selectedWords.clear();
+            updateSelectedWordsDisplay();
+            document.querySelectorAll('.cw.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+            document.querySelectorAll('.cw.loading').forEach(el => {
+                el.classList.remove('loading');
+            });
+        });
+        
+        // Process batch
+        processBatchBtn.addEventListener('click', async () => {
+            if (selectedWords.size === 0) return;
+            
+            processBatchBtn.disabled = true;
+            processBatchBtn.innerHTML = '<span class="loading-spinner"></span> Processing...';
+            
+            try {
+                const words = Array.from(selectedWords);
+                const response = await fetch('/batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ words: words })
+                });
+                
+                const results = await response.json();
+                
+                // Display all results
+                translationContent.innerHTML = '<h3>Batch Results</h3>';
+                
+                for (const [word, result] of Object.entries(results)) {
+                    const wordDiv = document.createElement('div');
+                    wordDiv.style.marginBottom = '20px';
+                    
+                    const wordTitle = document.createElement('div');
+                    wordTitle.className = 'word';
+                    wordTitle.textContent = word;
+                    wordDiv.appendChild(wordTitle);
+                    
+                    if (result.error) {
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'err';
+                        errorDiv.textContent = result.error;
+                        wordDiv.appendChild(errorDiv);
+                    } else if (result.examples) {
+                        const examplesList = document.createElement('ul');
+                        examplesList.className = 'examples';
+                        result.examples.forEach(example => {
+                            const li = document.createElement('li');
+                            li.textContent = example;
+                            examplesList.appendChild(li);
+                        });
+                        wordDiv.appendChild(examplesList);
+                    }
+                    
+                    translationContent.appendChild(wordDiv);
+                }
+                
+                translationPanel.classList.add('show');
+                selectedWords.clear();
+                updateSelectedWordsDisplay();
+                document.querySelectorAll('.cw.selected').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                
+            } catch (error) {
+                translationContent.innerHTML = `
+                    <h3>Error</h3>
+                    <div class="err">Failed to process batch: ${escapeHtml(String(error))}</div>
+                `;
+                translationPanel.classList.add('show');
+            } finally {
+                processBatchBtn.disabled = false;
+                processBatchBtn.textContent = 'Process Selected';
+            }
+        });
+        
+        // Update selected words display
+        function updateSelectedWordsDisplay() {
+            selectedWordsDiv.innerHTML = '';
+            
+            if (selectedWords.size === 0) {
+                selectedWordsDiv.textContent = 'No words selected';
+                processBatchBtn.disabled = true;
+            } else {
+                selectedWords.forEach(word => {
+                    const tag = document.createElement('div');
+                    tag.className = 'selected-word-tag';
+                    tag.innerHTML = `
+                        ${escapeHtml(word)}
+                        <span class="remove" data-word="${escapeHtml(word)}">&times;</span>
+                    `;
+                    tag.querySelector('.remove').addEventListener('click', (e) => {
+                        const phraseToRemove = e.target.getAttribute('data-word');
+                        selectedWords.delete(phraseToRemove);
+                        
+                        // Remove visual selection for all words in phrase
+                        const wordsToRemove = phraseToRemove.split(' ');
+                        wordsToRemove.forEach(w => {
+                            const el = getWordElement(w);
+                            if (el) {
+                                el.classList.remove('selected');
+                                el.classList.remove('loading');
+                            }
+                        });
+                        
+                        updateSelectedWordsDisplay();
+                    });
+                    selectedWordsDiv.appendChild(tag);
+                });
+                processBatchBtn.disabled = false;
+            }
+        }
+        
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Get word element
+        function getWordElement(word) {
+            return Array.from(document.querySelectorAll('.cw')).find(el => {
+                return el.getAttribute('data-word') === word;
+            });
+        }
+        
+        // Get adjacent words with their elements
+        function getAdjacentWords(word) {
+            const words = Array.from(document.querySelectorAll('.cw'));
+            const currentIndex = words.findIndex(el => el.getAttribute('data-word') === word);
+            
+            if (currentIndex === -1) return { left: null, right: null };
+            
+            const result = { left: null, right: null };
+            // Check previous word
+            if (currentIndex > 0) {
+                const leftWord = words[currentIndex - 1].getAttribute('data-word');
+                const leftElement = words[currentIndex - 1];
+                result.left = { word: leftWord, element: leftElement };
+            }
+            // Check next word
+            if (currentIndex < words.length - 1) {
+                const rightWord = words[currentIndex + 1].getAttribute('data-word');
+                const rightElement = words[currentIndex + 1];
+                result.right = { word: rightWord, element: rightElement };
+            }
+            
+            return result;
+        }
+        
+        // Merge adjacent selected words into phrases
+        function mergeAdjacentWords() {
+            const words = Array.from(document.querySelectorAll('.cw'));
+            const mergedPhrases = new Set();
+            const processedIndices = new Set();
+            
+            // Build phrases from consecutive selected words based on visual state
+            for (let i = 0; i < words.length; i++) {
+                if (processedIndices.has(i)) continue;
+                
+                // Check if this word is visually selected
+                if (!words[i].classList.contains('selected')) continue;
+                
+                const word = words[i].getAttribute('data-word');
+                
+                // Start building a phrase from this word
+                let phrase = word;
+                let phraseIndices = [i];
+                let j = i;
+                
+                // Check words to the right (consecutive selected words)
+                while (j + 1 < words.length) {
+                    const nextElement = words[j + 1];
+                    
+                    // Only merge if next word is also selected
+                    if (nextElement.classList.contains('selected')) {
+                        const nextWord = nextElement.getAttribute('data-word');
+                        phrase += ' ' + nextWord;
+                        phraseIndices.push(j + 1);
+                        j++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // Only create phrase if it's multiple words
+                if (phraseIndices.length > 1) {
+                    mergedPhrases.add(phrase);
+                    // Mark indices as processed
+                    phraseIndices.forEach(idx => processedIndices.add(idx));
+                } else {
+                    // Single word, keep it
+                    mergedPhrases.add(word);
+                    processedIndices.add(i);
+                }
+            }
+            
+            // Update selectedWords with merged phrases
+            selectedWords.clear();
+            mergedPhrases.forEach(phrase => selectedWords.add(phrase));
+            
+            return mergedPhrases;
+        }
+        
+        // Handle word click
+        async function handleWordClick(word, element) {
+            if (element.classList.contains('loading')) return;
+            
+            // Toggle selection
+            if (element.classList.contains('selected')) {
+                element.classList.remove('selected');
+                selectedWords.delete(word);
+                
+                // Rebuild selections - check if word was part of a merged phrase
+                // and unmerge if necessary
+                const phrasesToRemove = [];
+                selectedWords.forEach(phrase => {
+                    // Check if this phrase contains the deselected word
+                    const wordsInPhrase = phrase.split(' ');
+                    if (wordsInPhrase.includes(word) && wordsInPhrase.length > 1) {
+                        phrasesToRemove.push(phrase);
+                    }
+                });
+                
+                // Remove merged phrases that contained this word
+                phrasesToRemove.forEach(phrase => selectedWords.delete(phrase));
+                
+                // Rebuild all selections based on visual state
+                mergeAdjacentWords();
+                updateSelectedWordsDisplay();
+                return;
+            }
+            
+            // Add selection
+            element.classList.add('selected');
+            selectedWords.add(word);
+            
+            // Merge adjacent words if they're selected
+            const adjacent = getAdjacentWords(word);
+            
+            // Check if left word is selected
+            if (adjacent.left && adjacent.left.element.classList.contains('selected')) {
+                mergeAdjacentWords();
+            }
+            // Check if right word is selected
+            else if (adjacent.right && adjacent.right.element.classList.contains('selected')) {
+                mergeAdjacentWords();
+            }
+            
+            updateSelectedWordsDisplay();
+            
+            // Get the phrase to translate (could be merged)
+            let phraseToTranslate = word;
+            selectedWords.forEach(phrase => {
+                if (phrase.includes(word) && phrase.length > word.length) {
+                    phraseToTranslate = phrase;
+                }
+            });
+            
+            // Show loading state
+            element.classList.add('loading');
+            if (phraseToTranslate !== word) {
+                // Also show loading on other words in phrase
+                phraseToTranslate.split(' ').forEach(w => {
+                    const el = getWordElement(w);
+                    if (el) el.classList.add('loading');
+                });
+            }
+            
+            try {
+                const response = await fetch(`/t/${encodeURIComponent(phraseToTranslate)}`);
+                const result = await response.json();
+                
+                // Display result
+                translationContent.innerHTML = `
+                    <h3>Translation</h3>
+                    <div class="word">${escapeHtml(phraseToTranslate)}</div>
+                `;
+                
+                if (result.error) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'err';
+                    errorDiv.textContent = result.error;
+                    translationContent.appendChild(errorDiv);
+                } else if (result.examples) {
+                    const examplesList = document.createElement('ul');
+                    examplesList.className = 'examples';
+                    result.examples.forEach(example => {
+                        const li = document.createElement('li');
+                        li.textContent = example;
+                        examplesList.appendChild(li);
+                    });
+                    translationContent.appendChild(examplesList);
+                }
+                
+                translationPanel.classList.add('show');
+                
+            } catch (error) {
+                translationContent.innerHTML = `
+                    <h3>Error</h3>
+                    <div class="err">Failed to fetch translation: ${escapeHtml(String(error))}</div>
+                `;
+                translationPanel.classList.add('show');
+            } finally {
+                // Remove loading state
+                element.classList.remove('loading');
+                if (phraseToTranslate !== word) {
+                    phraseToTranslate.split(' ').forEach(w => {
+                        const el = getWordElement(w);
+                        if (el) el.classList.remove('loading');
+                    });
+                }
+            }
+        }
+        
+        // Add click handlers to words
+        document.querySelectorAll('.cw').forEach(element => {
+            const word = element.getAttribute('data-word');
+            
+            // Single click
+            element.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleWordClick(word, element);
+            });
+            
+            // Touch/mouse selection
+            element.addEventListener('mousedown', (e) => {
+                if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                    isSelecting = true;
+                    startWord = word;
+                }
+            });
+            
+            element.addEventListener('mouseenter', () => {
+                if (isSelecting && startWord) {
+                    // Could implement range selection here
+                }
+            });
+        });
+        
+        // End selection
+        document.addEventListener('mouseup', () => {
+            isSelecting = false;
+            startWord = null;
+        });
+        
+        // Prevent text selection during drag
+        document.addEventListener('selectstart', (e) => {
+            if (isSelecting) {
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>
+
