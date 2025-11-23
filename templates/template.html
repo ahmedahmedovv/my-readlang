@@ -469,6 +469,11 @@
             
             .page-info {
                 order: -1;
+                font-size: 14px;
+            }
+            
+            .pagination-controls {
+                margin: 15px 0;
             }
             
             .content-controls {
@@ -749,6 +754,63 @@
         let pages = [];
         const WORDS_PER_PAGE = 500; // Adjust based on content density
         
+        // Storage keys
+        const STORAGE_KEY_PAGE = 'dictionary_current_page';
+        const STORAGE_KEY_SELECTED = 'dictionary_selected_words';
+        
+        // Load saved state from localStorage
+        function loadSavedState() {
+            try {
+                // Load current page
+                const savedPage = localStorage.getItem(STORAGE_KEY_PAGE);
+                if (savedPage !== null) {
+                    const pageNum = parseInt(savedPage, 10);
+                    if (!isNaN(pageNum) && pageNum >= 0) {
+                        currentPage = pageNum;
+                    }
+                }
+                
+                // Load selected words
+                const savedWords = localStorage.getItem(STORAGE_KEY_SELECTED);
+                if (savedWords) {
+                    try {
+                        const wordsArray = JSON.parse(savedWords);
+                        if (Array.isArray(wordsArray)) {
+                            selectedWords = new Set(wordsArray);
+                        }
+                    } catch (e) {
+                        console.warn('Failed to parse saved words:', e);
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to load saved state:', e);
+            }
+        }
+        
+        // Save current state to localStorage
+        function saveState() {
+            try {
+                // Save current page
+                localStorage.setItem(STORAGE_KEY_PAGE, currentPage.toString());
+                
+                // Save selected words
+                const wordsArray = Array.from(selectedWords);
+                localStorage.setItem(STORAGE_KEY_SELECTED, JSON.stringify(wordsArray));
+            } catch (e) {
+                console.warn('Failed to save state:', e);
+            }
+        }
+        
+        // Clear saved state (useful for reset)
+        function clearSavedState() {
+            try {
+                localStorage.removeItem(STORAGE_KEY_PAGE);
+                localStorage.removeItem(STORAGE_KEY_SELECTED);
+            } catch (e) {
+                console.warn('Failed to clear saved state:', e);
+            }
+        }
+        
         // Get all defined words from cache (for future use)
         function getDefinedWords() {
             // This could fetch from localStorage or a server endpoint
@@ -852,6 +914,12 @@
             // Update pagination controls
             updatePaginationControls();
             
+            // Save state to localStorage
+            saveState();
+            
+            // Restore selected words on current page
+            restoreSelectedWordsOnPage();
+            
             // Scroll to top
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -953,11 +1021,113 @@
             document.getElementById('paginationControls').style.display = 'flex';
             document.getElementById('paginationControlsBottom').style.display = 'flex';
             
-            // Show first page
-            showPage(0);
+            // Load saved page or show first page
+            const savedPage = currentPage < totalPages ? currentPage : 0;
+            showPage(savedPage);
             
             // Re-attach event listeners
             attachWordListeners();
+            
+            // Restore selected words after a brief delay to ensure DOM is ready
+            setTimeout(() => {
+                restoreSelectedWords();
+            }, 200);
+        }
+        
+        // Restore selected words on all pages
+        function restoreSelectedWords() {
+            if (selectedWords.size === 0) return;
+            
+            // Go through all pages and restore selections
+            document.querySelectorAll('.cw').forEach(element => {
+                const word = element.getAttribute('data-word');
+                
+                // Check if this exact word is selected
+                if (selectedWords.has(word)) {
+                    element.classList.add('selected');
+                } else {
+                    // Check if this word is part of any selected phrase
+                    for (const selectedPhrase of selectedWords) {
+                        if (selectedPhrase !== word && selectedPhrase.includes(word)) {
+                            // Check if word is part of the phrase (not just substring)
+                            const wordsInPhrase = selectedPhrase.split(' ');
+                            if (wordsInPhrase.includes(word)) {
+                                element.classList.add('selected');
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Update display without saving (since we're restoring from saved state)
+            updateSelectedWordsDisplayWithoutSave();
+        }
+        
+        // Update display without saving (for restoration)
+        function updateSelectedWordsDisplayWithoutSave() {
+            selectedWordsDiv.innerHTML = '';
+            
+            if (selectedWords.size === 0) {
+                selectedWordsDiv.textContent = 'No words selected';
+                processBatchBtn.disabled = true;
+            } else {
+                selectedWords.forEach(word => {
+                    const tag = document.createElement('div');
+                    tag.className = 'selected-word-tag';
+                    tag.innerHTML = `
+                        ${escapeHtml(word)}
+                        <span class="remove" data-word="${escapeHtml(word)}">&times;</span>
+                    `;
+                    tag.querySelector('.remove').addEventListener('click', (e) => {
+                        const phraseToRemove = e.target.getAttribute('data-word');
+                        selectedWords.delete(phraseToRemove);
+                        
+                        // Remove visual selection for all words in phrase
+                        const wordsToRemove = phraseToRemove.split(' ');
+                        wordsToRemove.forEach(w => {
+                            const el = getWordElement(w);
+                            if (el) {
+                                el.classList.remove('selected');
+                                el.classList.remove('loading');
+                            }
+                        });
+                        
+                        updateSelectedWordsDisplay();
+                        saveState(); // Save state after removing word
+                    });
+                    selectedWordsDiv.appendChild(tag);
+                });
+                processBatchBtn.disabled = false;
+            }
+        }
+        
+        // Restore selected words only on current visible page
+        function restoreSelectedWordsOnPage() {
+            if (selectedWords.size === 0) return;
+            
+            const currentPageEl = document.getElementById(`page-${currentPage}`);
+            if (!currentPageEl) return;
+            
+            // Only restore selections on the current visible page
+            currentPageEl.querySelectorAll('.cw').forEach(element => {
+                const word = element.getAttribute('data-word');
+                
+                // Check if this word is selected
+                for (const selectedPhrase of selectedWords) {
+                    if (selectedPhrase === word) {
+                        element.classList.add('selected');
+                        break;
+                    } else if (selectedPhrase.includes(word)) {
+                        // Check if word is part of a phrase
+                        const wordsInPhrase = selectedPhrase.split(' ');
+                        if (wordsInPhrase.includes(word)) {
+                            element.classList.add('selected');
+                            break;
+                        }
+                    }
+                }
+            });
         }
         
         // Attach word click listeners
@@ -1048,10 +1218,23 @@
         
         // Initialize pagination when page loads
         document.addEventListener('DOMContentLoaded', () => {
+            // Load saved state first
+            loadSavedState();
+            
             // Wait a bit for content to render
             setTimeout(() => {
                 initPaginationSimple();
             }, 100);
+        });
+        
+        // Save state before page unload
+        window.addEventListener('beforeunload', () => {
+            saveState();
+        });
+        
+        // Also save state when user navigates away (for SPA-like behavior)
+        window.addEventListener('pagehide', () => {
+            saveState();
         });
         
         // Export content
@@ -1097,6 +1280,8 @@
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
+                    // Clear saved state when importing new content
+                    clearSavedState();
                     showNotification('Content imported successfully! Reloading page...', 'success');
                     // Reload page after 1 second to show new content
                     setTimeout(() => {
@@ -1185,6 +1370,7 @@
             document.querySelectorAll('.cw.loading').forEach(el => {
                 el.classList.remove('loading');
             });
+            clearSavedState(); // Clear saved state
         });
         
         // Process batch
@@ -1286,11 +1472,15 @@
                         });
                         
                         updateSelectedWordsDisplay();
+                        saveState(); // Save state after removing word
                     });
                     selectedWordsDiv.appendChild(tag);
                 });
                 processBatchBtn.disabled = false;
             }
+            
+            // Save state after updating display
+            saveState();
         }
         
         // Escape HTML to prevent XSS
@@ -1411,6 +1601,7 @@
                 // Rebuild all selections based on visual state
                 mergeAdjacentWords();
                 updateSelectedWordsDisplay();
+                saveState(); // Save state after deselection
                 return;
             }
             
@@ -1431,6 +1622,7 @@
             }
             
             updateSelectedWordsDisplay();
+            saveState(); // Save state after selection
             
             // Get the phrase to translate (could be merged)
             let phraseToTranslate = word;
