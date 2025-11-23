@@ -350,6 +350,65 @@
             100% { transform: rotate(360deg); }
         }
         
+        /* Pagination Styles */
+        .pagination-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: var(--color-bg-light);
+            border-radius: 8px;
+            border: 1px solid var(--color-gray-light);
+            gap: 15px;
+        }
+        
+        .pagination-bottom {
+            margin-top: 20px;
+        }
+        
+        .btn-pagination {
+            padding: 10px 20px;
+            border: 1px solid var(--color-gray-light);
+            border-radius: 6px;
+            background: var(--color-white);
+            color: var(--color-black);
+            cursor: pointer;
+            font-size: 16px;
+            min-height: 44px;
+            min-width: 100px;
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+            touch-action: manipulation;
+            font-weight: 500;
+        }
+        
+        .btn-pagination:hover:not(:disabled) {
+            background: var(--color-bg-light);
+            border-color: var(--color-black);
+        }
+        
+        .btn-pagination:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .page-info {
+            flex: 1;
+            text-align: center;
+            font-size: 16px;
+            color: var(--color-black);
+            font-weight: 500;
+        }
+        
+        .content-page {
+            display: none;
+        }
+        
+        .content-page.active {
+            display: block;
+        }
+        
         /* iPhone and small mobile devices */
         @media (max-width: 428px) {
             body {
@@ -395,6 +454,21 @@
             .selected-word-tag {
                 padding: 6px 10px;
                 font-size: 13px;
+            }
+            
+            .pagination-controls {
+                flex-direction: column;
+                gap: 10px;
+                padding: 12px;
+            }
+            
+            .btn-pagination {
+                width: 100%;
+                padding: 12px;
+            }
+            
+            .page-info {
+                order: -1;
             }
             
             .content-controls {
@@ -613,10 +687,29 @@
     </style>
 </head>
 <body>
-    <div class="container">
+        <div class="container">
         <h1>Interactive Dictionary</h1>
+        
+        <!-- Pagination Controls -->
+        <div class="pagination-controls" id="paginationControls" style="display: none;">
+            <button class="btn-pagination" id="prevPage" disabled>← Previous</button>
+            <div class="page-info">
+                <span id="pageInfo">Page 1 of 1</span>
+            </div>
+            <button class="btn-pagination" id="nextPage" disabled>Next →</button>
+        </div>
+        
         <div class="content" id="content">
             {{ content|safe }}
+        </div>
+        
+        <!-- Pagination Controls (bottom) -->
+        <div class="pagination-controls pagination-bottom" id="paginationControlsBottom" style="display: none;">
+            <button class="btn-pagination" id="prevPageBottom" disabled>← Previous</button>
+            <div class="page-info">
+                <span id="pageInfoBottom">Page 1 of 1</span>
+            </div>
+            <button class="btn-pagination" id="nextPageBottom" disabled>Next →</button>
         </div>
         
         <div class="content-controls">
@@ -651,12 +744,251 @@
         let selectedWords = new Set();
         let isSelecting = false;
         let startWord = null;
+        let currentPage = 0;
+        let totalPages = 1;
+        let pages = [];
+        const WORDS_PER_PAGE = 500; // Adjust based on content density
         
         // Get all defined words from cache (for future use)
         function getDefinedWords() {
             // This could fetch from localStorage or a server endpoint
             // For now, return empty set
             return new Set();
+        }
+        
+        // Initialize pagination
+        function initPagination() {
+            const contentDiv = document.getElementById('content');
+            const allWords = Array.from(contentDiv.querySelectorAll('.cw'));
+            
+            // Only paginate if there are many words
+            if (allWords.length <= WORDS_PER_PAGE) {
+                return; // No pagination needed
+            }
+            
+            // Split content into pages
+            pages = [];
+            for (let i = 0; i < allWords.length; i += WORDS_PER_PAGE) {
+                const pageWords = allWords.slice(i, i + WORDS_PER_PAGE);
+                pages.push(pageWords);
+            }
+            
+            totalPages = pages.length;
+            
+            // Create page containers
+            contentDiv.innerHTML = '';
+            pages.forEach((pageWords, index) => {
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'content-page';
+                pageDiv.id = `page-${index}`;
+                
+                // Reconstruct content for this page
+                let pageHTML = '';
+                let currentParent = null;
+                
+                pageWords.forEach(wordEl => {
+                    // Get the parent structure
+                    let parent = wordEl.parentElement;
+                    let text = '';
+                    
+                    // Collect all siblings in the same parent
+                    while (parent && parent !== contentDiv) {
+                        if (parent.tagName && parent.tagName !== 'BODY' && parent.tagName !== 'HTML') {
+                            if (currentParent !== parent) {
+                                if (currentParent) {
+                                    pageHTML += '</' + currentParent.tagName.toLowerCase() + '>';
+                                }
+                                pageHTML += '<' + parent.tagName.toLowerCase();
+                                if (parent.className) {
+                                    pageHTML += ' class="' + parent.className + '"';
+                                }
+                                pageHTML += '>';
+                                currentParent = parent;
+                            }
+                            break;
+                        }
+                        parent = parent.parentElement;
+                    }
+                    
+                    pageHTML += wordEl.outerHTML;
+                });
+                
+                if (currentParent) {
+                    pageHTML += '</' + currentParent.tagName.toLowerCase() + '>';
+                }
+                
+                pageDiv.innerHTML = pageHTML;
+                contentDiv.appendChild(pageDiv);
+            });
+            
+            // Show pagination controls
+            document.getElementById('paginationControls').style.display = 'flex';
+            document.getElementById('paginationControlsBottom').style.display = 'flex';
+            
+            // Show first page
+            showPage(0);
+            
+            // Re-attach event listeners to new word elements
+            attachWordListeners();
+        }
+        
+        // Show specific page
+        function showPage(pageIndex) {
+            if (pageIndex < 0 || pageIndex >= totalPages) return;
+            
+            // Hide all pages
+            document.querySelectorAll('.content-page').forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            // Show current page
+            const currentPageEl = document.getElementById(`page-${pageIndex}`);
+            if (currentPageEl) {
+                currentPageEl.classList.add('active');
+            }
+            
+            currentPage = pageIndex;
+            
+            // Update pagination controls
+            updatePaginationControls();
+            
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // Update pagination button states
+        function updatePaginationControls() {
+            const prevBtn = document.getElementById('prevPage');
+            const nextBtn = document.getElementById('nextPage');
+            const prevBtnBottom = document.getElementById('prevPageBottom');
+            const nextBtnBottom = document.getElementById('nextPageBottom');
+            const pageInfo = document.getElementById('pageInfo');
+            const pageInfoBottom = document.getElementById('pageInfoBottom');
+            
+            prevBtn.disabled = currentPage === 0;
+            nextBtn.disabled = currentPage === totalPages - 1;
+            prevBtnBottom.disabled = currentPage === 0;
+            nextBtnBottom.disabled = currentPage === totalPages - 1;
+            
+            pageInfo.textContent = `Page ${currentPage + 1} of ${totalPages}`;
+            pageInfoBottom.textContent = `Page ${currentPage + 1} of ${totalPages}`;
+        }
+        
+        // Simpler pagination approach - split by paragraphs
+        function initPaginationSimple() {
+            const contentDiv = document.getElementById('content');
+            if (!contentDiv) return;
+            
+            // Get all clickable words to determine if pagination is needed
+            const allWords = contentDiv.querySelectorAll('.cw');
+            
+            // Only paginate if there are many words (more than 1000)
+            if (allWords.length <= 1000) {
+                return; // No pagination needed for short content
+            }
+            
+            // Get all block-level elements (paragraphs, headings, lists)
+            const blockElements = contentDiv.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, div, blockquote, pre');
+            
+            if (blockElements.length === 0) {
+                // Fallback: split by word count if no block elements
+                const wordsPerPage = 800;
+                const words = Array.from(allWords);
+                pages = [];
+                
+                for (let i = 0; i < words.length; i += wordsPerPage) {
+                    pages.push(words.slice(i, i + wordsPerPage));
+                }
+                
+                totalPages = pages.length;
+                
+                // Create page containers by grouping words
+                const originalHTML = contentDiv.innerHTML;
+                contentDiv.innerHTML = '';
+                
+                pages.forEach((pageWords, index) => {
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'content-page';
+                    pageDiv.id = `page-${index}`;
+                    
+                    // Create a wrapper to maintain structure
+                    const wrapper = document.createElement('div');
+                    pageWords.forEach(word => {
+                        wrapper.appendChild(word.cloneNode(true));
+                    });
+                    pageDiv.appendChild(wrapper);
+                    contentDiv.appendChild(pageDiv);
+                });
+            } else {
+                // Group block elements into pages
+                const blocksPerPage = 20; // Adjust based on content density
+                pages = [];
+                
+                for (let i = 0; i < blockElements.length; i += blocksPerPage) {
+                    const pageBlocks = Array.from(blockElements).slice(i, i + blocksPerPage);
+                    pages.push(pageBlocks);
+                }
+                
+                totalPages = pages.length;
+                
+                // Create page containers
+                const originalHTML = contentDiv.innerHTML;
+                contentDiv.innerHTML = '';
+                
+                pages.forEach((pageBlocks, index) => {
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'content-page';
+                    pageDiv.id = `page-${index}`;
+                    
+                    // Clone block elements for this page
+                    pageBlocks.forEach(block => {
+                        pageDiv.appendChild(block.cloneNode(true));
+                    });
+                    
+                    contentDiv.appendChild(pageDiv);
+                });
+            }
+            
+            // Show pagination controls
+            document.getElementById('paginationControls').style.display = 'flex';
+            document.getElementById('paginationControlsBottom').style.display = 'flex';
+            
+            // Show first page
+            showPage(0);
+            
+            // Re-attach event listeners
+            attachWordListeners();
+        }
+        
+        // Attach word click listeners
+        function attachWordListeners() {
+            document.querySelectorAll('.cw').forEach(element => {
+                const word = element.getAttribute('data-word');
+                
+                // Remove existing listeners by cloning
+                const newElement = element.cloneNode(true);
+                element.parentNode.replaceChild(newElement, element);
+                
+                // Add click handler
+                newElement.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    handleWordClick(word, newElement);
+                });
+                
+                // Touch/mouse selection
+                newElement.addEventListener('mousedown', (e) => {
+                    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                        isSelecting = true;
+                        startWord = word;
+                    }
+                });
+                
+                newElement.addEventListener('mouseenter', () => {
+                    if (isSelecting && startWord) {
+                        // Could implement range selection here
+                    }
+                });
+            });
         }
         
         // Get translation panel elements
@@ -668,6 +1000,59 @@
         const clearSelectionBtn = document.getElementById('clearSelection');
         const exportContentBtn = document.getElementById('exportContent');
         const importFileInput = document.getElementById('importFile');
+        const prevPageBtn = document.getElementById('prevPage');
+        const nextPageBtn = document.getElementById('nextPage');
+        const prevPageBtnBottom = document.getElementById('prevPageBottom');
+        const nextPageBtnBottom = document.getElementById('nextPageBottom');
+        
+        // Pagination event listeners
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 0) {
+                showPage(currentPage - 1);
+            }
+        });
+        
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage < totalPages - 1) {
+                showPage(currentPage + 1);
+            }
+        });
+        
+        prevPageBtnBottom.addEventListener('click', () => {
+            if (currentPage > 0) {
+                showPage(currentPage - 1);
+            }
+        });
+        
+        nextPageBtnBottom.addEventListener('click', () => {
+            if (currentPage < totalPages - 1) {
+                showPage(currentPage + 1);
+            }
+        });
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            // Only navigate if not typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            if (e.key === 'ArrowLeft' && currentPage > 0) {
+                e.preventDefault();
+                showPage(currentPage - 1);
+            } else if (e.key === 'ArrowRight' && currentPage < totalPages - 1) {
+                e.preventDefault();
+                showPage(currentPage + 1);
+            }
+        });
+        
+        // Initialize pagination when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // Wait a bit for content to render
+            setTimeout(() => {
+                initPaginationSimple();
+            }, 100);
+        });
         
         // Export content
         exportContentBtn.addEventListener('click', async () => {
@@ -1111,30 +1496,8 @@
             }
         }
         
-        // Add click handlers to words
-        document.querySelectorAll('.cw').forEach(element => {
-            const word = element.getAttribute('data-word');
-            
-            // Single click
-            element.addEventListener('click', (e) => {
-                e.preventDefault();
-                handleWordClick(word, element);
-            });
-            
-            // Touch/mouse selection
-            element.addEventListener('mousedown', (e) => {
-                if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                    isSelecting = true;
-                    startWord = word;
-                }
-            });
-            
-            element.addEventListener('mouseenter', () => {
-                if (isSelecting && startWord) {
-                    // Could implement range selection here
-                }
-            });
-        });
+        // Initial word listeners (will be re-attached by pagination if needed)
+        attachWordListeners();
         
         // End selection
         document.addEventListener('mouseup', () => {
