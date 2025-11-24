@@ -61,11 +61,11 @@
         .content {
             font-size: 17px;
             line-height: 1.7;
+            word-spacing: 4px;
             margin-bottom: 20px;
             word-wrap: break-word;
             overflow-wrap: break-word;
             color: var(--color-black);
-            transition: font-size 0.3s ease, line-height 0.3s ease;
         }
         
         .cw {
@@ -573,31 +573,8 @@
                 box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
             }
             
-            .settings-panel {
-                width: 100%;
-                right: -100%;
-            }
-            
-            .settings-panel.show {
-                right: 0;
-            }
-            
             .header-controls h1 {
                 font-size: 20px;
-            }
-            
-            .btn-settings {
-                padding: 6px 10px;
-                font-size: 16px;
-            }
-            
-            .settings-panel {
-                width: 100%;
-                right: -100%;
-            }
-            
-            .settings-panel.show {
-                right: 0;
             }
             
             .translation-body {
@@ -807,50 +784,6 @@
         <div class="container">
         <div class="header-controls">
             <h1>Interactive Dictionary</h1>
-            <button class="btn-settings" id="settingsBtn" title="Settings">
-                ⚙️
-            </button>
-        </div>
-        
-        <!-- Settings Panel -->
-        <div class="settings-panel" id="settingsPanel">
-            <div class="settings-header">
-                <h3>Settings</h3>
-                <button class="close" id="closeSettings">&times;</button>
-            </div>
-            <div class="settings-content">
-                <div class="setting-group">
-                    <label for="fontSize">
-                        Font Size: <span id="fontSizeValue">17</span>px
-                    </label>
-                    <input type="range" id="fontSize" min="12" max="24" value="17" step="1">
-                </div>
-                
-                <div class="setting-group">
-                    <label for="lineHeight">
-                        Line Height: <span id="lineHeightValue">1.7</span>
-                    </label>
-                    <input type="range" id="lineHeight" min="1.2" max="2.5" value="1.7" step="0.1">
-                </div>
-                
-                <div class="setting-group">
-                    <label for="wordSpacing">
-                        Word Spacing: <span id="wordSpacingValue">normal</span>
-                    </label>
-                    <input type="range" id="wordSpacing" min="0" max="20" value="4" step="1">
-                </div>
-                
-                <div class="setting-group">
-                    <label for="maxWidth">
-                        Content Max Width: <span id="maxWidthValue">900</span>px
-                    </label>
-                    <input type="range" id="maxWidth" min="600" max="1400" value="900" step="50">
-                </div>
-                
-                <div class="setting-group">
-                    <button class="btn-secondary" id="resetSettings">Reset to Default</button>
-                </div>
-            </div>
         </div>
         
         <!-- Pagination Controls -->
@@ -931,18 +864,6 @@
         const STORAGE_KEY_PAGE = 'dictionary_current_page';
         const STORAGE_KEY_SELECTED = 'dictionary_selected_words';
         const STORAGE_KEY_MEMORIZED = 'dictionary_memorized_words';
-        const STORAGE_KEY_SETTINGS = 'dictionary_settings';
-        
-        // Default settings
-        const defaultSettings = {
-            fontSize: 17,
-            lineHeight: 1.7,
-            wordSpacing: 4,
-            maxWidth: 900
-        };
-        
-        // Current settings
-        let currentSettings = {...defaultSettings};
         
         // Load saved state from localStorage
         function loadSavedState() {
@@ -1375,15 +1296,6 @@
         const examplesContent = document.getElementById('examplesContent');
         const closePanel = document.getElementById('closePanel');
         
-        // Get settings panel elements
-        const settingsBtn = document.getElementById('settingsBtn');
-        const settingsPanel = document.getElementById('settingsPanel');
-        const closeSettingsBtn = document.getElementById('closeSettings');
-        const fontSizeSlider = document.getElementById('fontSize');
-        const lineHeightSlider = document.getElementById('lineHeight');
-        const wordSpacingSlider = document.getElementById('wordSpacing');
-        const maxWidthSlider = document.getElementById('maxWidth');
-        const resetSettingsBtn = document.getElementById('resetSettings');
         const selectedWordsDiv = document.getElementById('selectedWords');
         const processBatchBtn = document.getElementById('processBatch');
         const clearSelectionBtn = document.getElementById('clearSelection');
@@ -1436,96 +1348,14 @@
             }
         });
         
-        // Load and apply settings
-        function loadSettings() {
-            try {
-                const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
-                if (saved) {
-                    currentSettings = {...defaultSettings, ...JSON.parse(saved)};
-                }
-            } catch (e) {
-                console.warn('Failed to load settings:', e);
-            }
-            applySettings();
-        }
-        
-        // Save settings
-        function saveSettings() {
-            try {
-                localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(currentSettings));
-            } catch (e) {
-                console.warn('Failed to save settings:', e);
-            }
-        }
-        
-        // Apply settings to the page
-        function applySettings() {
-            const content = document.querySelector('.content');
-            const container = document.querySelector('.container');
-            
-            if (content) {
-                // Apply to content wrapper
-                content.style.fontSize = currentSettings.fontSize + 'px';
-                content.style.lineHeight = currentSettings.lineHeight;
-                content.style.wordSpacing = currentSettings.wordSpacing + 'px';
-                
-                // Also apply to all word elements for consistency
-                const wordElements = content.querySelectorAll('.cw');
-                wordElements.forEach(el => {
-                    // Font size and line height should inherit from content
-                    // But we can set word spacing directly
-                    el.style.wordSpacing = 'inherit';
-                });
-            }
-            
-            if (container) {
-                container.style.maxWidth = currentSettings.maxWidth + 'px';
-            }
-            
-            // Update slider values (only if elements exist)
-            const fontSizeEl = document.getElementById('fontSize');
-            const lineHeightEl = document.getElementById('lineHeight');
-            const wordSpacingEl = document.getElementById('wordSpacing');
-            const maxWidthEl = document.getElementById('maxWidth');
-            
-            if (fontSizeEl) fontSizeEl.value = currentSettings.fontSize;
-            if (lineHeightEl) lineHeightEl.value = currentSettings.lineHeight;
-            if (wordSpacingEl) wordSpacingEl.value = currentSettings.wordSpacing;
-            if (maxWidthEl) maxWidthEl.value = currentSettings.maxWidth;
-            
-            // Update display values
-            updateSettingValues();
-        }
-        
-        // Update setting value displays
-        function updateSettingValues() {
-            const fontSizeValueEl = document.getElementById('fontSizeValue');
-            const lineHeightValueEl = document.getElementById('lineHeightValue');
-            const wordSpacingValueEl = document.getElementById('wordSpacingValue');
-            const maxWidthValueEl = document.getElementById('maxWidthValue');
-            
-            if (fontSizeValueEl) fontSizeValueEl.textContent = currentSettings.fontSize;
-            if (lineHeightValueEl) lineHeightValueEl.textContent = currentSettings.lineHeight.toFixed(1);
-            
-            if (wordSpacingValueEl) {
-                const spacingValue = currentSettings.wordSpacing === 0 ? 'normal' : currentSettings.wordSpacing + 'px';
-                wordSpacingValueEl.textContent = spacingValue;
-            }
-            
-            if (maxWidthValueEl) maxWidthValueEl.textContent = currentSettings.maxWidth;
-        }
-        
         // Initialize pagination when page loads
         document.addEventListener('DOMContentLoaded', () => {
             // Load saved state first
             loadSavedState();
-            loadSettings();
             
             // Wait a bit for content to render
             setTimeout(() => {
                 initPaginationSimple();
-                // Re-apply settings after pagination in case content was restructured
-                applySettings();
             }, 100);
         });
         
@@ -1564,74 +1394,6 @@
                 showNotification(`Export failed: ${error.message}`, 'error');
             }
         });
-        
-        // Settings panel toggle
-        if (settingsBtn && settingsPanel) {
-            settingsBtn.addEventListener('click', () => {
-                settingsPanel.classList.toggle('show');
-            });
-        }
-        
-        if (closeSettingsBtn && settingsPanel) {
-            closeSettingsBtn.addEventListener('click', () => {
-                settingsPanel.classList.remove('show');
-            });
-        }
-        
-        // Close settings when clicking outside
-        document.addEventListener('click', (e) => {
-            if (settingsPanel && settingsPanel.classList.contains('show') && 
-                !settingsPanel.contains(e.target) && 
-                settingsBtn && !settingsBtn.contains(e.target)) {
-                settingsPanel.classList.remove('show');
-            }
-        });
-        
-        // Font size slider
-        if (fontSizeSlider) {
-            fontSizeSlider.addEventListener('input', (e) => {
-                currentSettings.fontSize = parseInt(e.target.value);
-                applySettings();
-                saveSettings();
-            });
-        }
-        
-        // Line height slider
-        if (lineHeightSlider) {
-            lineHeightSlider.addEventListener('input', (e) => {
-                currentSettings.lineHeight = parseFloat(e.target.value);
-                applySettings();
-                saveSettings();
-            });
-        }
-        
-        // Word spacing slider
-        if (wordSpacingSlider) {
-            wordSpacingSlider.addEventListener('input', (e) => {
-                currentSettings.wordSpacing = parseInt(e.target.value);
-                applySettings();
-                saveSettings();
-            });
-        }
-        
-        // Max width slider
-        if (maxWidthSlider) {
-            maxWidthSlider.addEventListener('input', (e) => {
-                currentSettings.maxWidth = parseInt(e.target.value);
-                applySettings();
-                saveSettings();
-            });
-        }
-        
-        // Reset settings
-        if (resetSettingsBtn) {
-            resetSettingsBtn.addEventListener('click', () => {
-                currentSettings = {...defaultSettings};
-                applySettings();
-                saveSettings();
-                showNotification('Settings reset to default', 'success');
-            });
-        }
         
         // Export selected words
         exportSelectedWordsBtn.addEventListener('click', () => {
